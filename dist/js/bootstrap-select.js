@@ -422,7 +422,14 @@
       this.render();
       this.setStyle();
       this.setWidth();
-      if (this.options.container) this.selectPosition();
+      if (this.options.container) {
+        this.selectPosition();
+      } else {
+        this.$element.on('hide.bs.select', function () {
+          // empty menu on close
+          that.$menuInner[0].innerHTML = '';
+        });
+      }
       this.$menu.data('this', this);
       this.$newElement.data('this', this);
       if (this.options.mobile) this.mobile();
@@ -536,7 +543,7 @@
     createView: function(searchLis, refresh) {
       var that = this;
       this.viewObj._currentLis = (searchLis ? searchLis : this._lis);
-      var liObj = searchLis ? this.liObjSearch : this.liObj;
+      this.viewObj.currentliObj = searchLis ? this.liObjSearch : this.liObj;
       var liHeight = this.sizeInfo['liHeight'];
       var position = 0;
       var $lis;
@@ -545,9 +552,9 @@
       var $prevActive;
       var activeIndex;
       var prevActiveIndex;
-      
+
       scroll(0, true);
-      
+
       this.$menuInner.off('scroll.createView').on('scroll.createView', function(e) {
         if (!that.noScroll) scroll(this.scrollTop);
         that.noScroll = false;
@@ -568,40 +575,40 @@
         var position1 = that.viewObj.position0 + rows;
 
         if (that.activeIndex !== undefined) {
-          $prevActive = $(that.viewObj._currentLis[liObj[that.prevActiveIndex]]);
-          $active = $(that.viewObj._currentLis[liObj[that.activeIndex]]);
-          $selected = $(that.viewObj._currentLis[liObj[that.selectedIndex]]);
+          $prevActive = $(that.viewObj._currentLis[that.viewObj.currentliObj[that.prevActiveIndex]]);
+          $active = $(that.viewObj._currentLis[that.viewObj.currentliObj[that.activeIndex]]);
+          $selected = $(that.viewObj._currentLis[that.viewObj.currentliObj[that.selectedIndex]]);
 
           if (init) {
             if (that.activeIndex !== that.selectedIndex) {
-              that.viewObj._currentLis[liObj[that.activeIndex]] = $active.removeClass('active')[0].outerHTML;
+              that.viewObj._currentLis[that.viewObj.currentliObj[that.activeIndex]] = $active.removeClass('active')[0].outerHTML;
             }
             that.activeIndex = undefined;
           }
 
-          that.viewObj._currentLis[liObj[that.activeIndex]] = $active.addClass('active')[0].outerHTML;
+          that.viewObj._currentLis[that.viewObj.currentliObj[that.activeIndex]] = $active.addClass('active')[0].outerHTML;
 
           if (that.activeIndex && that.activeIndex !== that.selectedIndex && $selected.length) {
-            that.viewObj._currentLis[liObj[that.selectedIndex]] = $selected.removeClass('active')[0].outerHTML;
+            that.viewObj._currentLis[that.viewObj.currentliObj[that.selectedIndex]] = $selected.removeClass('active')[0].outerHTML;
           }
         }
-        
+
         if (that.prevActiveIndex !== undefined && that.prevActiveIndex !== that.activeIndex && that.prevActiveIndex !== that.selectedIndex && $prevActive) {
-          that.viewObj._currentLis[liObj[that.prevActiveIndex]] = $prevActive.removeClass('active')[0].outerHTML;
+          that.viewObj._currentLis[that.viewObj.currentliObj[that.prevActiveIndex]] = $prevActive.removeClass('active')[0].outerHTML;
         }
 
         that.viewObj.visibleLis = that.viewObj._currentLis.slice(that.viewObj.position0, position1);
 
         that.setOptionStatus();
-        
+
         that.$menuInner[0].innerHTML = that.viewObj.visibleLis.join('');
-        
+
         $lis = that.$menuInner.find('li');
-        
+
         that.prevActiveIndex = that.activeIndex;
-        
+
         var activePosition = activeIndex - that.viewObj.position0;
-        
+
         var $spacers = $lis.filter('.spacer');
         $spacers.filter('.spacer-before').removeClass('spacer spacer-before').css('marginTop', '');
         $spacers.filter('.spacer-after').removeClass('spacer spacer-after').css('marginBottom', '');
@@ -1315,11 +1322,10 @@
 
     setOptionStatus: function() {
       var that = this,
-          $selectOptions = this.$element.find('option'),
-          visibleLen = that.viewObj.visibleLis.length;
+          $selectOptions = this.$element.find('option');
 
-      if (visibleLen) {
-        for (var i = 0; i < visibleLen; i++) {
+      if (that.viewObj.visibleLis && that.viewObj.visibleLis.length) {
+        for (var i = 0; i < that.viewObj.visibleLis.length; i++) {
           var li = that.viewObj.visibleLis[i],
               index = $(li).data('originalIndex'),
               option = $selectOptions.eq(index)[0];
@@ -1344,8 +1350,11 @@
 
       $lis.toggleClass('selected', selected).find('a').attr('aria-selected', selected);
 
-      if ($lis.length) {      
-        this.viewObj.visibleLis[liIndex - this.viewObj.position0] = $lis[0].outerHTML;
+      if ($lis.length) {
+        // set this if not searching (should be automatically updated when searching, so don't need to do it again - would also cause duplicates to show in results)
+        if (this.viewObj.currentliObj === this.liObj) {
+          this.viewObj.visibleLis[liIndex - this.viewObj.position0] = $lis[0].outerHTML;
+        }
 
         $lis.toggleClass('active', selected && !this.multiple);
 
@@ -1371,7 +1380,10 @@
       }
 
       if ($lis.length) {
-        this.viewObj.visibleLis[liIndex - this.viewObj.position0] = $lis[0].outerHTML;
+        // set this if not searching (should be automatically updated when searching, so don't need to do it again - would also cause duplicates to show in results)
+        if (this.viewObj.currentliObj === this.liObj) {
+          this.viewObj.visibleLis[liIndex - this.viewObj.position0] = $lis[0].outerHTML;
+        }
 
         if (this._lis[liIndex] !== $lis[0].outerHTML) {
           this._lis[liIndex] = $lis[0].outerHTML;
@@ -1645,7 +1657,6 @@
         var searchValue = that.$searchbox.val();
         
         that.liObjSearch = {};
-        that.liSearchArr = [];
 
         if (searchValue) {
           var i,
@@ -1684,7 +1695,6 @@
                 
             if ( li.type !== 'divider' || ( li.type === 'divider' && liPrev && liPrev.type !== 'divider' && cacheLen - 1 !== i ) ) {
               searchMatch.push(that._lis[index]);
-              that.liSearchArr.push(li.originalIndex);
               that.liObjSearch[li.originalIndex] = searchMatch.length - 1;
             }
           }
@@ -1847,7 +1857,7 @@
       }
 
       if (that.options.liveSearch) {
-        if (/(^9$|27)/.test(e.keyCode.toString(10)) && isActive) {
+        if (/(^9$|27)/.test(e.keyCode.toString(10)) && isActive) { // tab or escape
           e.preventDefault();
           e.stopPropagation();
           that.$menuInner.click();
@@ -1855,7 +1865,7 @@
         }
       }
       
-      var downOnTab = e.keyCode == 9 && !$this.hasClass('dropdown-toggle') && that.options.selectOnTab;
+      var downOnTab = e.keyCode == 9 && !$this.hasClass('dropdown-toggle') && !that.options.selectOnTab;
 
       if (/(38|40)/.test(e.keyCode.toString(10)) || downOnTab) { // if up or down
         // sometimes the scroll event is not fired, manually trigger it's if not
@@ -1971,7 +1981,7 @@
         $(document).data('keycount', 0);
       }
 
-      if ((/(^9$|27)/.test(e.keyCode.toString(10)) && isActive && (that.multiple || that.options.liveSearch)) || (/(27)/.test(e.keyCode.toString(10)) && !isActive)) {
+      if ((/(^9$|27)/.test(e.keyCode.toString(10)) && isActive && (that.multiple || that.options.liveSearch)) || (/(27)/.test(e.keyCode.toString(10)) && !isActive)) { // tab or escape
         that.$menu.parent().removeClass('open');
         if (that.options.container) that.$newElement.removeClass('open');
         that.$button.focus();
